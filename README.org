@@ -1,0 +1,318 @@
+ #+OPTIONS: toc:4 
+* Tooling
+  1. Install a jdk [[http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html][Download page]]
+  2. Install intellij [[https://www.jetbrains.com/idea/][Download page]]
+  3. Install lein 
+     1. Download the [[https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein][lein script]] (or on Windows [[https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein.bat][lein.bat]] - there's also an [[http://leiningen-win-installer.djpowell.net/][installer]] for Windows users)
+     2. Place it on your $PATH where your shell can find it (eg. ~/bin)
+     3. Set it to be executable (chmod a+x ~/bin/lein)
+     4. Run it (lein) and it will download the self-install package
+  5. Install [[https://cursive-ide.com/][cursive]]
+
+* Development
+
+*** Create a project
+
+     Run following to create the project: 
+  #+BEGIN_SRC shell
+  lein new app clj-feedback
+  #+END_SRC
+
+*** Import it with intellij
+
+     File -> Open -> project.clj
+
+*** Start hacking
+
+    Open core.clj file
+    
+    Add following to represent the database
+    #+BEGIN_SRC clojure
+    (def db (atom {}))
+    #+END_SRC
+
+    Fire up the REPL
+
+    Load the code into the REPL and run some simple code
+
+*** Let's write the app now
+
+        Let's say the db has following structure:
+        #+BEGIN_SRC clojure
+        (def db {"vlad" {"what do you think about clojure hands-on?" {"nath" nil "benoit" nil "xavier" nil}
+                         "what do you think about ul-conf?"          {"greg" nil "benoit" nil}}
+                 "nath" {"what do you think about ce?" {"vlad" nil "xavier" nil}}})
+        #+END_SRC
+
+    Here are the stories: 
+     
+     1. As a feedback user I would like to as for feedback to a group of users
+
+        Functions that might be needed: 
+        - [[https://clojuredocs.org/clojure.core/assoc-in][assoc-in]]
+        
+        My version, just in case: 
+        #+BEGIN_SRC clojure
+        (defn ask-for-feedback [db user-id question target-audience]
+          (assoc-in db [user-id question] target-audience))
+        #+END_SRC
+          
+     2. As a feedback user I would like to be able to see all my feedback compaigns
+
+        Functions and macros that might be needed: 
+        - [[https://clojuredocs.org/clojure.core/get][get]]
+        - [[https://clojuredocs.org/clojure.core/keys][keys]]
+        - [[https://clojuredocs.org/clojure.core/-%3E%3E][->>]]
+
+        My version:
+        #+BEGIN_SRC clojure
+        (defn show-compaigns [db user-id]
+          (->> user-id
+               (get db)
+               keys))
+        #+END_SRC
+
+     3. As a feedback user I would like to be able to see incoming requests
+
+        Functions and macros that might be needed: 
+        - [[https://clojuredocs.org/clojure.core/and][and]]
+        - [[https://clojuredocs.org/clojure.core/contains_q][contains?]]
+        - [[https://clojuredocs.org/clojure.core/nil_q][nil?]]
+        - [[https://clojuredocs.org/clojure.core/filter][filter]]
+        - [[https://clojuredocs.org/clojure.core/partial][partial]]
+        - [[https://clojuredocs.org/clojure.core/map][map]]
+        - [[https://clojuredocs.org/clojure.core/concat][concat]]
+        - [[https://clojuredocs.org/clojure.core/reduce][reduce]]
+
+        My version: 
+        #+BEGIN_SRC clojure 
+        (defn- in-ta? [userid [_ target-audience]]
+          (and (contains? target-audience userid)
+               (nil? (get target-audience userid))))
+
+        (defn- create-incoming-request [from question]
+          {:question question :from from})
+
+        (defn- questions-for [user-id result [from all-compaigns]]
+          (->> all-compaigns
+               (filter (partial in-ta? user-id))
+               (map first)
+               (map (partial create-incoming-request from))
+               (concat result)))
+
+        (defn incoming-requests [db user-id]
+          (reduce (partial questions-for user-id) [] db))
+        #+END_SRC
+
+     4. As a feedback user I would like to be able answer to a feedback requests
+
+        No new finctions.
+
+        My version:
+        #+BEGIN_SRC clojure
+        (defn answer-to [db user-id {:keys [question from] :as incoming-request} answer]
+          (assoc-in db [from question user-id] answer))
+        #+END_SRC
+     5. As a feedback user I would like to be able to see s feed back results
+
+        No new finctions.
+
+        My version:
+        #+BEGIN_SRC clojure
+        (defn results [db user-id]
+          (get db user-id))
+        #+END_SRC
+
+*** Slack integration
+
+    1. Create a conf folder with an init.edn in it
+    2. Create a new slack bot called ul-feedback [[https://my.slack.com/services/new/bot][here]]
+    3. Add following into init.edn file:
+       #+BEGIN_SRC clojure
+         {
+          :slack-bot-auth-token "token value"
+          :proxy-host "proxy.ullink.lan"
+          :proxy-port 9876
+          }
+       #+END_SRC
+    4. Add mount dependency into project.clj file
+       #+BEGIN_SRC clojure
+       [mount "0.1.11"]
+       #+END_SRC
+    5. Add the require declaration into core.clj
+       #+BEGIN_SRC clojure
+       (:require [mount.core :refer [defstate start stop]])
+       #+END_SRC
+    6. Add state declaration for conf in the beginning of core.clj
+       #+BEGIN_SRC clojure
+         (defstate {:on-reload :noop} configuration :start (read-string (slurp "conf/init.edn")))
+       #+END_SRC
+    7. Add [[https://github.com/Ullink/simple-slack-api][simple-slack-api]] dependency into project.clj file
+       #+BEGIN_SRC clojure
+       [com.github.Ullink/simple-slack-api "e8a9423"]
+       [org.glassfish.tyrus.bundles/tyrus-standalone-client "1.13"]
+       [clj-http "2.3.0"]
+       #+END_SRC
+       and 
+       #+BEGIN_SRC clojure
+       :repositories {"jitpack" "https://jitpack.io"}
+       #+END_SRC
+    8. Use following [[https://github.com/Ullink/simple-slack-api/blob/master/samples/connection/src/main/java/com/ullink/slack/simpleslackapi/samples/connection/SlackProxyConnection.java][example]] to connect to slack
+       Following functions might be useful:
+       - [[https://clojuredocs.org/clojure.core/reify][reify]]
+
+       To translate java example to clojure [[http://clojure.org/reference/java_interop][this]] page might be useful. To resume member access is done following way: 
+
+       #+BEGIN_SRC clojure
+         (.instanceMember instance args*)
+         (.instanceMember Classname args*)
+         (.-instanceField instance)
+         (Classname/staticMethod args*)
+         Classname/staticField
+       #+END_SRC 
+       
+       My version:
+       #+BEGIN_SRC clojure
+         (declare pr-events)
+         (declare connect)
+         (declare disconnect)
+
+         (defstate {:on-reload :noop} connection
+           :start (connect pr-events)
+           :stop (disconnect connection))
+
+         (defn listener [f]
+           (reify SlackMessagePostedListener
+             (onEvent [_ event session]
+               (f event session))))
+
+         (defn connect [listener-fn]
+           (let [{:keys [slack-bot-auth-token proxy-host proxy-port]} configuration
+                 session (-> (SlackSessionFactory/getSlackSessionBuilder slack-bot-auth-token)
+                             (.withProxy Proxy$Type/HTTP proxy-host proxy-port)
+                             (.build))]
+
+             (.addMessagePostedListener session (listener listener-fn))
+             (.connect session)
+             session))
+
+         (defn disconnect [connection]
+           (.disconnect connection))
+
+         (defn pr-events [^SlackMessagePosted event ^SlackSession session]
+           (let [me (-> session .sessionPersona .getId)
+                 sender (-> event .getSender .getId)
+                 content (.getMessageContent event)]
+             (println "Received " content " from " sender)))
+       #+END_SRC
+    9. To avoid being spammed by slack logs, create a logs folder and place following in src/logback.xml
+       #+BEGIN_SRC xml
+         <configuration debug="false">
+             <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+                 <file>logs/ul-feedback.log</file>
+                 <append>true</append>
+                 <encoder>
+                     <pattern>%-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
+                 </encoder>
+             </appender>
+
+             <logger name="ul-feedback" level="DEBUG"/>
+
+             <root level="INFO">
+                 <appender-ref ref="CONSOLE"/>
+                 <appender-ref ref="FILE"/>
+             </root>
+         </configuration>
+       #+END_SRC
+    10. start a REPL, type 
+        #+BEGIN_SRC clojure
+          (start)
+        #+END_SRC
+    11. You should be connected.
+
+*** Parsing slack messages
+
+    There's many ways of parsing strings, I've chosen [[https://github.com/Engelberg/instaparse][instaparse]] for this toy feedback bot. So lets start:
+
+    1. Add instaparse to dependencies vector in project.clj:
+       #+BEGIN_SRC clojure
+         [instaparse "1.4.3"]
+       #+END_SRC
+       
+       You will also need to add a require delaration: 
+       #+BEGIN_SRC clojure
+       (:require [instaparse.core :refer [parser]])
+       #+END_SRC
+         
+       Here is a quick summary of interesting functions it provides:
+       - Use (parser grammar) to generate a parser function ƒ.
+       - Use (parse ƒ input) to generate a parser tree.
+       - Use (transform parse_tree map) to compute, do things, to your parse tree.
+       - Use (failure? parse_output) and (get-failure parse_output) to check for parse errors or get parse error.
+       - Use (with-out-str (pprint-failure res)) to pretty-print a parse error message.
+
+    2. Let's write the grammar for following possible requests:
+       - *ask @vladimir @xavier-d what do you think about clojure handson?* /to open a UL Feedback session, will post a message to the private chan with targeted users/
+       - *list* /to see my UL Feedback sessions/
+       - *incoming* /to see the requested UL Feedback from others/
+       - *answer to @vladimir that was cool* /if only one request from that user/
+       - *answer to @vladimir 5 that was awesome* /if many/
+       - *results* /results/
+
+       To start, create a query.bnf in resources folder of the project and add this declaration:
+       #+BEGIN_SRC clojure
+         (def whitespace (parser "whitespace = #'\\s+'"))
+         (def query-parser (parser (clojure.java.io/resource "query.bnf") :auto-whitespace whitespace))
+       #+END_SRC
+       Now start a REPL, type (start) and write the grammar, you're ready to go!
+       
+       My version: 
+       #+BEGIN_SRC ebnf
+         <query> = command
+             <command> = list | incoming | results | ask | answer
+             list = <'list'>
+             incoming = <'incoming'>
+             results = <'results'>
+             ask = <'ask'> users question
+             users = user (<whitespace> user)*
+             <user> = <'<@'> id <'>'>
+             <id> = #'[A-Z0-9]+'
+             question = !users #'[^\?]+\?'
+             answer = <'answer'> <'to'> user number? message
+             number = #'[0-9]+'
+             message = !number #'.*'
+             <whitespace> = #'\s+'
+       #+END_SRC
+    3. Now we need to write the interpreter.
+       
+       For that we will use the transform function:
+       #+BEGIN_SRC clojure
+         (:require [instaparse.transform :refer [transform]])
+       #+END_SRC
+         
+  
+*** Web application
+    1. Generate new application from chestnut template:
+       #+BEGIN_SRC shell
+       lein new chestnut handson-web -- --reagent --vanilla --http-kit --site-middleware
+       #+END_SRC
+    2. Add ring-middleware-format dependency
+       Put into project.clj dependencies vector:
+       #+BEGIN_SRC clojure
+       [ring-middleware-format "0.7.0"]
+       #+END_SRC
+    3. Add secretary (client-side routing) dependency
+       Put into project.clj dependencies vector:
+       #+BEGIN_SRC clojure
+       [secretary "1.2.3"]
+       #+END_SRC
+    4. Copy core.clj from above into src/clj/handson_web/folder
+       Do not forget to change the namespace declaration
+    5. Start the server
+       - Setup a local REPL
+       - Start the REPL
+       - Type (run) to start the server
+       - Go to http://localhost:3449 to check the result
+    6. Listen to some fuzzy explanations about user.clj, reagent, client and server side routing
+    7. Coming soon
+
