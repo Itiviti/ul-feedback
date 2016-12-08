@@ -1,5 +1,16 @@
- #+OPTIONS: toc:4 
-* Tooling
+#+OPTIONS: toc:4 
+* UL Feedback                                                         :TOC_3:
+   - [[#tooling][Tooling]]
+   - [[#development][Development]]
+     - [[#create-a-project][Create a project]]
+     - [[#import-it-with-intellij][Import it with intellij]]
+     - [[#start-hacking][Start hacking]]
+     - [[#lets-write-the-app-now][Let's write the app now]]
+     - [[#slack-integration][Slack integration]]
+     - [[#parsing-slack-messages][Parsing slack messages]]
+     - [[#web-application][Web application]]
+
+** Tooling
   1. Install a jdk [[http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html][Download page]]
   2. Install intellij [[https://www.jetbrains.com/idea/][Download page]]
   3. Install lein 
@@ -8,8 +19,8 @@
      3. Set it to be executable (chmod a+x ~/bin/lein)
      4. Run it (lein) and it will download the self-install package
   5. Install [[https://cursive-ide.com/][cursive]]
-
-* Development
+ 
+** Development
 
 *** Create a project
 
@@ -290,7 +301,6 @@
          (:require [instaparse.transform :refer [transform]])
        #+END_SRC
          
-  
 *** Web application
     1. Generate new application from chestnut template:
        #+BEGIN_SRC shell
