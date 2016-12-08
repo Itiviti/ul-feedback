@@ -1,5 +1,5 @@
 #+OPTIONS: toc:4 
-* UL Feedback                                                         :TOC_3:
+* UL Feedback                                                         :TOC_4:
    - [[#tooling][Tooling]]
    - [[#development][Development]]
      - [[#create-a-project][Create a project]]
@@ -8,6 +8,10 @@
      - [[#lets-write-the-app-now][Let's write the app now]]
      - [[#slack-integration][Slack integration]]
      - [[#parsing-slack-messages][Parsing slack messages]]
+     - [[#refactoring][Refactoring]]
+       - [[#adding-schema][Adding schema]]
+       - [[#adding-property-tests][Adding property tests]]
+       - [[#changing-data-model][Changing data model]]
      - [[#web-application][Web application]]
 
 ** Tooling
@@ -300,7 +304,26 @@
        #+BEGIN_SRC clojure
          (:require [instaparse.transform :refer [transform]])
        #+END_SRC
-         
+       
+       My version: 
+       #+BEGIN_SRC clojure
+         (defn compile-query [parsed-query]
+           (transform {:list     (fn [] (fn [user-id] (show-compaigns db user-id)))
+                       :incoming (fn [] (fn [user-id] (incoming-requests db user-id)))
+                       :results  (fn [] (fn [user-id] (results db user-id)))
+                       :users (fn [& users] users)
+                       :question (fn [question] question)
+                       :message (fn [message] message)
+                       :ask (fn [ta question] (fn [user-id] (ask-for-feedback db user-id question ta)))
+                       :answer   (fn [answer-to answer] (fn [user-id] user-id ;; OH SHI... we need to refacto..
+                                                          ))
+                       } parsed-query))
+       #+END_SRC
+*** Refactoring
+**** Adding schema
+**** Adding property tests
+**** Changing data model
+
 *** Web application
     1. Generate new application from chestnut template:
        #+BEGIN_SRC shell
