@@ -247,7 +247,7 @@
 
 *** Parsing slack messages
 
-    There's many ways of parsing strings, I've chosen [[https://github.com/Engelberg/instaparse][instaparse]] for this toy feedback bot. So lets start:
+    There's many ways of parsing strings, I've chosen [[https://github.com/Engelberg/instaparse][instaparse]] for this toy feedback bot, because we can™. So lets start:
 
     1. Add instaparse to dependencies vector in project.clj:
        #+BEGIN_SRC clojure
