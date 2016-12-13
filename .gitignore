@@ -10,3 +10,7 @@ pom.xml.asc
 .lein-plugins/
 .lein-failures
 .nrepl-port
+conf/init.edn
+.idea
+ul-feedback.iml
+ul-feedback.ipr
