@@ -1,4 +1,4 @@
-(defproject clojure-hands-on "0.1.0-SNAPSHOT"
+(defproject ul-feedback "0.1.0-SNAPSHOT"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
@@ -9,6 +9,6 @@
                  [org.glassfish.tyrus.bundles/tyrus-standalone-client "1.13"]
                  [clj-http "2.3.0"]]
   :repositories {"jitpack" "https://jitpack.io"}
-  :main ^:skip-aot clojure-hands-on.core
+  :main ^:skip-aot ul-feedback.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

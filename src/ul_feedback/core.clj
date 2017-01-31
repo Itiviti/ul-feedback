@@ -1,8 +1,31 @@
 (ns ul-feedback.core
   (:require [mount.core :refer [defstate start stop]])
-  (:gen-class))
+  (:gen-class)
+  (:import (com.ullink.slack.simpleslackapi.impl SlackSessionFactory)
+           (java.net Proxy$Type)
+           (com.ullink.slack.simpleslackapi.events SlackMessagePosted SlackEvent)
+           (com.ullink.slack.simpleslackapi SlackSession)
+           (com.ullink.slack.simpleslackapi.listeners SlackMessagePostedListener)))
 
 (defstate configuration :start (read-string (slurp "conf/init.edn")))
+
+(defn createListener []
+  (reify SlackMessagePostedListener
+    (onEvent [_ event session]
+      (println (.getMessageContent event) "from" (-> event .getSender .getRealName)))))
+
+(defn startSlack []
+  (let [session
+        (-> (SlackSessionFactory/getSlackSessionBuilder (get configuration :slack-bot-auth-token))
+            (.withProxy Proxy$Type/HTTP (get configuration :proxy-host) (get configuration :proxy-port))
+            (.build))]
+    (.addMessagePostedListener session (createListener))
+    (.connect session)
+    session))
+
+(defstate session
+          :start (startSlack)
+          :stop (.disconnect session))
 
 (def db {"vlad" {"what do you think about clojure hands-on?" {"nath" nil "benoit" nil "xavier" nil}
                  "what do you think about ul-conf?"          {"greg" nil "benoit" nil}}
