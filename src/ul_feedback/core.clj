@@ -1,5 +1,7 @@
 (ns ul-feedback.core
   (:require [mount.core :refer [defstate start stop]])
+  (:require [instaparse.core :refer [parser]])
+  (:require [instaparse.transform :refer [transform]])
   (:gen-class)
   (:import (com.ullink.slack.simpleslackapi.impl SlackSessionFactory)
            (java.net Proxy$Type)
@@ -7,12 +9,15 @@
            (com.ullink.slack.simpleslackapi SlackSession)
            (com.ullink.slack.simpleslackapi.listeners SlackMessagePostedListener)))
 
+(def whitespace (parser "whitespace = #'\\s+'"))
+(def query-parser (parser (clojure.java.io/resource "query.bnf") :auto-whitespace whitespace))
+
 (defstate configuration :start (read-string (slurp "conf/init.edn")))
 
 (defn createListener []
   (reify SlackMessagePostedListener
     (onEvent [_ event session]
-      (println (.getMessageContent event) "from" (-> event .getSender .getRealName)))))
+      (println (query-parser (.getMessageContent event)) "from" (-> event .getSender .getRealName)))))
 
 (defn startSlack []
   (let [session
@@ -68,3 +73,9 @@
 
 (defn see-answers [db user]
   (get db user))
+
+(def transformation {
+                     :text identity
+                     :users (fn [& params] params)
+                     :ask (fn [users text] (fn [db from] (ask-for-feedback db from text users)))
+                     })

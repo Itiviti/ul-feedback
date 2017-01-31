@@ -7,7 +7,8 @@
                  [mount "0.1.11"]
                  [com.github.Ullink/simple-slack-api "e8a9423"]
                  [org.glassfish.tyrus.bundles/tyrus-standalone-client "1.13"]
-                 [clj-http "2.3.0"]]
+                 [clj-http "2.3.0"]
+                 [instaparse "1.4.3"]]
   :repositories {"jitpack" "https://jitpack.io"}
   :main ^:skip-aot ul-feedback.core
   :target-path "target/%s"
