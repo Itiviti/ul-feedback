@@ -1,7 +1,7 @@
 (ns ul-feedback.core
-  (:require [mount.core :refer [defstate start stop]])
-  (:require [instaparse.core :refer [parser]])
-  (:require [instaparse.transform :refer [transform]])
+  (:require [mount.core :refer [defstate start stop]]
+            [instaparse.core :refer [parser]]
+            [instaparse.transform :refer [transform]])
   (:gen-class)
   (:import (com.ullink.slack.simpleslackapi.impl SlackSessionFactory)
            (java.net Proxy$Type)
@@ -14,27 +14,9 @@
 
 (defstate configuration :start (read-string (slurp "conf/init.edn")))
 
-(defn createListener []
-  (reify SlackMessagePostedListener
-    (onEvent [_ event session]
-      (println (query-parser (.getMessageContent event)) "from" (-> event .getSender .getRealName)))))
-
-(defn startSlack []
-  (let [session
-        (-> (SlackSessionFactory/getSlackSessionBuilder (get configuration :slack-bot-auth-token))
-            (.withProxy Proxy$Type/HTTP (get configuration :proxy-host) (get configuration :proxy-port))
-            (.build))]
-    (.addMessagePostedListener session (createListener))
-    (.connect session)
-    session))
-
-(defstate session
-          :start (startSlack)
-          :stop (.disconnect session))
-
-(def db {"vlad" {"what do you think about clojure hands-on?" {"nath" nil "benoit" nil "xavier" nil}
-                 "what do you think about ul-conf?"          {"greg" nil "benoit" nil}}
-         "nath" {"what do you think about ce?" {"vlad" nil "xavier" nil}}})
+(def db (atom {"vlad" {"what do you think about clojure hands-on?" {"nath" nil "benoit" nil "xavier" nil}
+                       "what do you think about ul-conf?"          {"greg" nil "benoit" nil}}
+               "nath" {"what do you think about ce?" {"vlad" nil "xavier" nil}}}))
 
 (defn- update-target-audience [db user question target-audience]
   (reduce #(assoc %1 %2 nil) (get-in db [user question]) target-audience))
@@ -74,8 +56,45 @@
 (defn see-answers [db user]
   (get db user))
 
-(def transformation {
-                     :text identity
-                     :users (fn [& params] params)
-                     :ask (fn [users text] (fn [db from] (ask-for-feedback db from text users)))
-                     })
+(defn findUserById [session user]
+  (->> user
+       (.findUserById session)
+       .getUserName))
+
+(def compiler {
+               :text  identity
+               :users (fn [& user-ids] (fn [session] (map (partial findUserById session) user-ids)))
+               :ask   (fn [users text] (fn [db session from] (ask-for-feedback db from text (users session))))
+               })
+
+(defn act-on-event [event session]
+  (let [compiled (->> event
+                      .getMessageContent
+                      query-parser
+                      (transform compiler)
+                      first)
+        username (-> event .getSender .getUserName)]
+    (println compiled)
+    (println username)
+    (swap! db compiled session username)
+    (println @db)
+    ))
+
+(defn createListener []
+  (reify SlackMessagePostedListener
+    (onEvent [_ event session]
+      (act-on-event event session))))
+
+
+(defn startSlack []
+  (let [session
+        (-> (SlackSessionFactory/getSlackSessionBuilder (get configuration :slack-bot-auth-token))
+            (.withProxy Proxy$Type/HTTP (get configuration :proxy-host) (get configuration :proxy-port))
+            (.build))]
+    (.addMessagePostedListener session (createListener))
+    (.connect session)
+    session))
+
+(defstate session
+          :start (startSlack)
+          :stop (.disconnect session))
