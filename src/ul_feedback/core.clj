@@ -1,7 +1,8 @@
 (ns ul-feedback.core
   (:require [mount.core :refer [defstate start stop]]
-            [instaparse.core :refer [parser]]
-            [instaparse.transform :refer [transform]])
+            [instaparse.core :refer [parser failure?]]
+            [instaparse.transform :refer [transform]]
+            [selmer.parser :refer [render-file]])
   (:gen-class)
   (:import (com.ullink.slack.simpleslackapi.impl SlackSessionFactory)
            (java.net Proxy$Type)
@@ -14,9 +15,9 @@
 
 (defstate configuration :start (read-string (slurp "conf/init.edn")))
 
-(def db (atom {"vlad" {"what do you think about clojure hands-on?" {"nath" nil "benoit" nil "xavier" nil}
-                       "what do you think about ul-conf?"          {"greg" nil "benoit" nil}}
-               "nath" {"what do you think about ce?" {"vlad" nil "xavier" nil}}}))
+(defonce db (atom {"vlad" {"what do you think about clojure hands-on?" {"nath" nil "benoit" nil "xavier" nil}
+                           "what do you think about ul-conf?"          {"greg" nil "benoit" nil}}
+                   "nath" {"what do you think about ce?" {"vlad" nil "xavier" nil}}}))
 
 (defn- update-target-audience [db user question target-audience]
   (reduce #(assoc %1 %2 nil) (get-in db [user question]) target-audience))
@@ -31,6 +32,7 @@
        (assoc-in db [user question])))
 
 (defn show-questions [db user]
+  ; TODO : provide user name
   (-> db
       (get user)
       keys))
@@ -56,15 +58,33 @@
 (defn see-answers [db user]
   (get db user))
 
-(defn findUserById [session user]
+(defn find-user-by-id [session user]
   (->> user
        (.findUserById session)
        .getUserName))
 
+(defn extract-template [questions]
+  (render-file "list.template" {:questions questions}))
+
+(defn reply-to-slack-request [session event details]
+  (.sendMessage session (.getChannel event) (extract-template details)))
+
+(defn notify-users-question-asked [session user question from]
+  (.sendMessageToUser session user (str question " from " from) nil))
+
+(defn ask-question [users text]
+  (fn [db session from event]
+    (let [interpreted-users (users session)]
+      (swap! db ask-for-feedback from text interpreted-users)
+      (doseq [user interpreted-users]
+        (notify-users-question-asked session (.findUserByUserName session user) text from))))
+  )
+
 (def compiler {
                :text  identity
-               :users (fn [& user-ids] (fn [session] (map (partial findUserById session) user-ids)))
-               :ask   (fn [users text] (fn [db session from] (ask-for-feedback db from text (users session))))
+               :users (fn [& user-ids] (fn [session] (map (partial find-user-by-id session) user-ids)))
+               :ask   ask-question
+               :list  (fn [] (fn [db session from event] (reply-to-slack-request session event (show-questions @db from))))
                })
 
 (defn act-on-event [event session]
@@ -76,13 +96,17 @@
         username (-> event .getSender .getUserName)]
     (println compiled)
     (println username)
-    (swap! db compiled session username)
+    ;(if (failure? (query-parser (->> event .getMessageContent)))
+    ;  (reply-to-slack-request session event (query-parser (->> event .getMessageContent)))
+    ;  )
+    (compiled db session username event)
     (println @db)
     ))
 
 (defn createListener []
   (reify SlackMessagePostedListener
     (onEvent [_ event session]
+      ; TODO ignore message from bot
       (act-on-event event session))))
 
 

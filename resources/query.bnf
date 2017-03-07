@@ -1,0 +1,12 @@
+<command> = ask | list | incoming | answer | results
+
+ask = <'ask'> users <' '> text
+list = <'list'>
+incoming = <'incoming'>
+answer = <'answer'> <'to'> user <' '> text
+results = <'results'>
+
+users = user (<' '> user)*
+<user> = <'<@'>#'\w+'<'>'>
+(*TODO manage subteam : ask <!subteam^S0DH9CFK9|@ul-bridge-team-members>  ça va?*)
+text = !user #'.+'

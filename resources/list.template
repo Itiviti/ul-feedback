@@ -1,0 +1,4 @@
+List of asked questions:
+{% for question in questions %}
+- {{question}}
+{% endfor %}
